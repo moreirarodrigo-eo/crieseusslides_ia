@@ -1,7 +1,8 @@
 // netlify/functions/gerar-codigo-slides.js
+const https = require('https');
 
-export const handler = async (event) => {
-    // Trata requisições de pre-flight (CORS) que o Codespaces faz
+exports.handler = async (event, context) => {
+    // Trata requisições de pre-flight (CORS)
     if (event.httpMethod === "OPTIONS") {
         return {
             statusCode: 200,
@@ -30,11 +31,9 @@ export const handler = async (event) => {
             return { 
                 statusCode: 500, 
                 headers: { "Access-Control-Allow-Origin": "*" },
-                body: JSON.stringify({ erro: "A chave GEMINI_API_KEY não foi detectada no ambiente." }) 
+                body: JSON.stringify({ erro: "A chave GEMINI_API_KEY não foi configurada no painel do Netlify." }) 
             };
         }
-
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
 
         const systemInstruction = `
             Você é um programador especialista na biblioteca PptxGenJS.
@@ -57,25 +56,45 @@ export const handler = async (event) => {
             Estilo visual: ${estilo}
         `;
 
-        const response = await fetch(endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: userPrompt }] }],
-                systemInstruction: { parts: [{ text: systemInstruction }] },
-                generationConfig: { temperature: 0.1 }
-            })
+        const payload = JSON.stringify({
+            contents: [{ parts: [{ text: userPrompt }] }],
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            generationConfig: { temperature: 0.1 }
         });
 
-        const data = await response.json();
+        // Requisição HTTPS nativa do Node.js (Sem depender de pacotes externos ou fetch global)
+        const respostaIA = await new Promise((resolve, reject) => {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
+            const req = https.request(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(payload)
+                }
+            }, (res) => {
+                let data = '';
+                res.on('data', (chunk) => data += chunk);
+                res.on('end', () => resolve({ statusCode: res.statusCode, data }));
+            });
+
+            req.on('error', (e) => reject(e));
+            req.write(payload);
+            req.end();
+        });
+
+        if (respostaIA.statusCode !== 200) {
+            throw new Error(`Erro na API do Gemini (Status ${respostaIA.statusCode}): ${respostaIA.data}`);
+        }
+
+        const dataJson = JSON.parse(respostaIA.data);
         
-        if (!data.candidates || data.candidates.length === 0) {
+        if (!dataJson.candidates || dataJson.candidates.length === 0) {
             throw new Error("A IA não gerou nenhuma resposta válida.");
         }
 
-        let codigoGerado = data.candidates[0].content.parts[0].text;
+        let codigoGerado = dataJson.candidates[0].content.parts[0].text;
 
-        // Limpeza profunda de qualquer caractere markdown que a IA teime em colocar
+        // Limpeza rigorosa de qualquer caractere markdown residual
         codigoGerado = codigoGerado.replace(/```javascript/gi, "")
                                    .replace(/```html/gi, "")
                                    .replace(/```/gi, "")
