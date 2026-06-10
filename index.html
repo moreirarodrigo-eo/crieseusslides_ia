@@ -1,231 +1,67 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gerador Inteligente de Apresentações</title>
-    <script src="https://cdn.jsdelivr.net/gh/gitbrent/PptxGenJS@3.12.0/dist/pptxgen.bundle.js"></script>
-    
-    <style>
-        :root {
-            --primary-color: #1A365D;
-            --accent-color: #3182CE;
-            --bg-color: #F7FAFC;
-            --card-bg: #FFFFFF;
-            --text-color: #2D3748;
+<script>
+    async function gerarSlidesAutomatico() {
+        const tema = document.getElementById('tema').value.trim();
+        const curso = document.getElementById('curso').value.trim();
+        const publico = document.getElementById('publico').value.trim();
+        const duracao = document.getElementById('duracao').value.trim();
+        const estilo = document.getElementById('estilo').value;
+
+        const btn = document.getElementById('generateBtn');
+        const statusDiv = document.getElementById('status');
+
+        if (!tema || !curso || !publico || !duracao) {
+            mostrarStatus('Por favor, preencha todos os campos do formulário.', 'error');
+            return;
         }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
+        btn.disabled = true;
+        mostrarStatus('Conectando à IA via Netlify Functions e estruturando os seus slides...', 'loading');
 
-        .container {
-            width: 100%;
-            max-width: 800px;
-            background: var(--card-bg);
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-            box-sizing: border-box;
-        }
+        try {
+            // Adiciona log para debug
+            console.log('Enviando requisição...', { tema, curso, publico, duracao, estilo });
+            
+            const response = await fetch('/.netlify/functions/gerar-codigo-slides', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tema, curso, publico, duracao, estilo })
+            });
 
-        header {
-            margin-bottom: 25px;
-            border-bottom: 2px solid #E2E8F0;
-            padding-bottom: 15px;
-            text-align: center;
-        }
-
-        h1 {
-            color: var(--primary-color);
-            margin: 0 0 10px 0;
-            font-size: 26px;
-        }
-
-        p {
-            color: #718096;
-            margin: 0;
-            font-size: 15px;
-        }
-
-        .form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 25px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .full-width {
-            grid-column: span 2;
-        }
-
-        label {
-            font-weight: 600;
-            margin-bottom: 8px;
-            font-size: 14px;
-            color: #4a5568;
-        }
-
-        input, select {
-            padding: 12px;
-            border: 1px solid #CBD5E0;
-            border-radius: 8px;
-            font-size: 14px;
-            box-sizing: border-box;
-        }
-
-        button {
-            width: 100%;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 15px 20px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.2s;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-        }
-
-        button:hover {
-            background-color: var(--accent-color);
-        }
-
-        button:disabled {
-            background-color: #A0AEC0;
-            cursor: not-allowed;
-        }
-
-        .status-message {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 8px;
-            display: none;
-            font-weight: 500;
-            text-align: center;
-        }
-
-        .success { background-color: #C6F6D5; color: #22543D; border-left: 5px solid #38A169; }
-        .error { background-color: #FED7D7; color: #742A2A; border-left: 5px solid #E53E3E; }
-        .loading { background-color: #EBF8FF; color: #2B6CB0; border-left: 5px solid #3182CE; }
-    </style>
-</head>
-<body>
-
-    <div class="container">
-        <header>
-            <h1>Gerador Inteligente de Apresentações</h1>
-            <p>Os dados informados alimentam o prompt nativo da inteligência artificial para gerar o arquivo PPTX automaticamente.</p>
-        </header>
-
-        <div class="form-grid">
-            <div class="form-group full-width">
-                <label>Tema da Aula / Conteúdo Detalhado</label>
-                <input type="text" id="tema" placeholder="Ex: Métricas de fragmentação florestal e efeito de borda na Amazônia">
-            </div>
-
-            <div class="form-group">
-                <label>Curso / Disciplina</label>
-                <input type="text" id="curso" placeholder="Ex: Gestão Ambiental / Ecologia de Paisagens">
-            </div>
-
-            <div class="form-group">
-                <label>Público-Alvo</label>
-                <input type="text" id="publico" placeholder="Ex: Estudantes de pós-graduação">
-            </div>
-
-            <div class="form-group">
-                <label>Duração Prevista (Minutos)</label>
-                <input type="number" id="duracao" value="60">
-            </div>
-
-            <div class="form-group full-width">
-                <label>Identidade Visual</label>
-                <select id="estilo">
-                    <option value="academico">Acadêmico Clássico (Tons sóbrios de azul e cinza)</option>
-                    <option value="moderno">Moderno Limpo (Alto contraste, fundo claro e tipografia nítida)</option>
-                </select>
-            </div>
-        </div>
-
-        <button id="generateBtn" onclick="gerarSlidesAutomatico()">
-            <span>📊 Elaborar e Baixar Apresentação</span>
-        </button>
-
-        <div id="status" class="status-message"></div>
-    </div>
-
-    <script>
-        async function gerarSlidesAutomatico() {
-            const tema = document.getElementById('tema').value.trim();
-            const curso = document.getElementById('curso').value.trim();
-            const publico = document.getElementById('publico').value.trim();
-            const duracao = document.getElementById('duracao').value.trim();
-            const estilo = document.getElementById('estilo').value;
-
-            const btn = document.getElementById('generateBtn');
-            const statusDiv = document.getElementById('status');
-
-            if (!tema || !curso || !publico || !duracao) {
-                mostrarStatus('Por favor, preencha todos os campos do formulário.', 'error');
-                return;
+            console.log('Resposta recebida:', response.status);
+            
+            // Verifica se a resposta é válida antes de parsear
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.erro || `Erro HTTP ${response.status}`);
             }
 
-            btn.disabled = true;
-            mostrarStatus('Conectando à IA via Netlify Functions e estruturando os seus slides...', 'loading');
+            const data = await response.json();
+            console.log('Dados recebidos:', data);
 
-            try {
-                // Requisição direta usando rotas relativas, mapeada corretamente pelas portas do Codespaces
-                const response = await fetch('/.netlify/functions/gerar-codigo-slides', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tema, curso, publico, duracao, estilo })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok || data.erro) {
-                    throw new Error(data.erro || 'Falha na comunicação com o backend.');
-                }
-
-                // 1. Inicializa o objeto global esperado pelo código gerado
-                window.pptx = new PptxGenJS();
-
-                // 2. Transforma o retorno estrito da IA em script executável no cliente
-                const rodarScriptAI = new Function(data.codigo);
-                rodarScriptAI();
-
-                mostrarStatus('Processamento finalizado com sucesso! O download da sua apresentação iniciará em instantes.', 'success');
-            } catch (error) {
-                console.error(error);
-                mostrarStatus('Erro no processamento: ' + error.message, 'error');
-            } finally {
-                btn.disabled = false;
+            if (!data.codigo) {
+                throw new Error('Resposta da IA não contém código válido');
             }
-        }
 
-        function mostrarStatus(mensagem, tipo) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.innerText = mensaje = mensagem;
-            statusDiv.className = 'status-message ' + tipo;
-            statusDiv.style.display = 'block';
+            // 1. Inicializa o objeto global esperado pelo código gerado
+            window.pptx = new PptxGenJS();
+
+            // 2. Transforma o retorno estrito da IA em script executável no cliente
+            const rodarScriptAI = new Function(data.codigo);
+            rodarScriptAI();
+
+            mostrarStatus('Processamento finalizado com sucesso! O download da sua apresentação iniciará em instantes.', 'success');
+        } catch (error) {
+            console.error('Erro detalhado:', error);
+            mostrarStatus('Erro no processamento: ' + error.message, 'error');
+        } finally {
+            btn.disabled = false;
         }
-    </script>
-</body>
-</html>
+    }
+
+    function mostrarStatus(mensagem, tipo) {
+        const statusDiv = document.getElementById('status');
+        statusDiv.innerText = mensagem;  // ✅ Corrigido
+        statusDiv.className = 'status-message ' + tipo;
+        statusDiv.style.display = 'block';
+    }
+</script>
