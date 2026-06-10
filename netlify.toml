@@ -6,4 +6,4 @@
   node_bundler = "esbuild"
 
 [functions."gerar-codigo-slides"]
-  timeout = 180
+  timeout = 300
