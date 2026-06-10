@@ -172,67 +172,78 @@
     </div>
 
     <script>
-        async function gerarSlidesAutomatico() {
-            const tema = document.getElementById('tema').value.trim();
-            const curso = document.getElementById('curso').value.trim();
-            const publico = document.getElementById('publico').value.trim();
-            const duracao = document.getElementById('duracao').value.trim();
-            const estilo = document.getElementById('estilo').value;
+    async function gerarSlidesAutomatico() {
+        const tema = document.getElementById('tema').value.trim();
+        const curso = document.getElementById('curso').value.trim();
+        const publico = document.getElementById('publico').value.trim();
+        const duracao = document.getElementById('duracao').value.trim();
+        const estilo = document.getElementById('estilo').value;
 
-            const btn = document.getElementById('generateBtn');
-            const statusDiv = document.getElementById('status');
+        const btn = document.getElementById('generateBtn');
+        const statusDiv = document.getElementById('status');
 
-            if (!tema || !curso || !publico || !duracao) {
-                mostrarStatus('Por favor, preencha todos os campos do formulário.', 'error');
-                return;
+        if (!tema || !curso || !publico || !duracao) {
+            mostrarStatus('Por favor, preencha todos os campos do formulário.', 'error');
+            return;
+        }
+
+        btn.disabled = true;
+        mostrarStatus('A IA está elaborando sua apresentação. Isso pode levar até 2 minutos...', 'loading');
+
+        // Cria um AbortController com timeout de 180 segundos
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 180000);
+
+        try {
+            console.log('Enviando requisição...', { tema, curso, publico, duracao, estilo });
+            
+            const response = await fetch('/.netlify/functions/gerar-codigo-slides', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tema, curso, publico, duracao, estilo }),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+            console.log('Resposta recebida:', response.status);
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.erro || 'Erro HTTP ' + response.status);
             }
 
-            btn.disabled = true;
-            mostrarStatus('Conectando à IA via Netlify Functions e estruturando os seus slides...', 'loading');
+            const data = await response.json();
+            console.log('Dados recebidos com sucesso');
 
-            try {
-                console.log('Enviando requisição...', { tema, curso, publico, duracao, estilo });
-                
-                const response = await fetch('/.netlify/functions/gerar-codigo-slides', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tema, curso, publico, duracao, estilo })
-                });
+            if (!data.codigo) {
+                throw new Error('Resposta da IA não contém código válido');
+            }
 
-                console.log('Resposta recebida:', response.status);
-                
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.erro || 'Erro HTTP ' + response.status);
-                }
+            window.pptx = new PptxGenJS();
 
-                const data = await response.json();
-                console.log('Dados recebidos:', data);
+            const rodarScriptAI = new Function(data.codigo);
+            rodarScriptAI();
 
-                if (!data.codigo) {
-                    throw new Error('Resposta da IA não contém código válido');
-                }
-
-                window.pptx = new PptxGenJS();
-
-                const rodarScriptAI = new Function(data.codigo);
-                rodarScriptAI();
-
-                mostrarStatus('Processamento finalizado com sucesso! O download da sua apresentação iniciará em instantes.', 'success');
-            } catch (error) {
+            mostrarStatus('Processamento finalizado com sucesso! O download da sua apresentação iniciará em instantes.', 'success');
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                mostrarStatus('Tempo limite excedido (3 minutos). Tente novamente.', 'error');
+            } else {
                 console.error('Erro detalhado:', error);
                 mostrarStatus('Erro no processamento: ' + error.message, 'error');
-            } finally {
-                btn.disabled = false;
             }
+        } finally {
+            btn.disabled = false;
         }
+    }
 
-        function mostrarStatus(mensagem, tipo) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.innerText = mensagem;
-            statusDiv.className = 'status-message ' + tipo;
-            statusDiv.style.display = 'block';
-        }
-    </script>
+    function mostrarStatus(mensagem, tipo) {
+        const statusDiv = document.getElementById('status');
+        statusDiv.innerText = mensagem;
+        statusDiv.className = 'status-message ' + tipo;
+        statusDiv.style.display = 'block';
+    }
+</script>
 </body>
 </html>
