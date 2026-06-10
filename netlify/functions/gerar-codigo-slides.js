@@ -2,7 +2,6 @@
 const https = require('https');
 
 exports.handler = async (event, context) => {
-    // Trata requisições de pre-flight (CORS)
     if (event.httpMethod === "OPTIONS") {
         return {
             statusCode: 200,
@@ -31,10 +30,11 @@ exports.handler = async (event, context) => {
             return { 
                 statusCode: 500, 
                 headers: { "Access-Control-Allow-Origin": "*" },
-                body: JSON.stringify({ erro: "A chave GEMINI_API_KEY não foi configurada no painel do Netlify." }) 
+                body: JSON.stringify({ erro: "Chave API não configurada" }) 
             };
         }
 
+        // MANTENHA SEU PROMPT ORIGINAL AQUI - aquele que funciona bem
         const systemInstruction = `
             Você é um programador especialista na biblioteca PptxGenJS.
             Sua única tarefa é gerar código JavaScript puro, limpo e perfeitamente executável para configurar slides.
@@ -62,7 +62,6 @@ exports.handler = async (event, context) => {
             generationConfig: { temperature: 0.1 }
         });
 
-        // Requisição HTTPS nativa do Node.js (Sem depender de pacotes externos ou fetch global)
         const respostaIA = await new Promise((resolve, reject) => {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
             const req = https.request(url, {
@@ -70,7 +69,8 @@ exports.handler = async (event, context) => {
                 headers: {
                     'Content-Type': 'application/json',
                     'Content-Length': Buffer.byteLength(payload)
-                }
+                },
+                timeout: 170000  // 170 segundos (menos que os 180 da Function)
             }, (res) => {
                 let data = '';
                 res.on('data', (chunk) => data += chunk);
@@ -78,12 +78,16 @@ exports.handler = async (event, context) => {
             });
 
             req.on('error', (e) => reject(e));
+            req.on('timeout', () => {
+                req.destroy();
+                reject(new Error('Timeout na API do Gemini'));
+            });
             req.write(payload);
             req.end();
         });
 
         if (respostaIA.statusCode !== 200) {
-            throw new Error(`Erro na API do Gemini (Status ${respostaIA.statusCode}): ${respostaIA.data}`);
+            throw new Error(`Erro na API do Gemini (Status ${respostaIA.statusCode})`);
         }
 
         const dataJson = JSON.parse(respostaIA.data);
@@ -94,7 +98,6 @@ exports.handler = async (event, context) => {
 
         let codigoGerado = dataJson.candidates[0].content.parts[0].text;
 
-        // Limpeza rigorosa de qualquer caractere markdown residual
         codigoGerado = codigoGerado.replace(/```javascript/gi, "")
                                    .replace(/```html/gi, "")
                                    .replace(/```/gi, "")
@@ -110,6 +113,7 @@ exports.handler = async (event, context) => {
         };
 
     } catch (error) {
+        console.error('Erro na function:', error);
         return {
             statusCode: 500,
             headers: { "Access-Control-Allow-Origin": "*" },
